@@ -80,7 +80,7 @@ img { max-width: 100%; }
 .btn-block { display: block; width: 100%; }
 input, select, textarea {
   background: var(--bg2); border: 1px solid var(--line); color: var(--text);
-  border-radius: 10px; padding: 11px 13px; font-size: 15px; width: 100%;
+  border-radius: 10px; padding: 11px 13px; font-size: 16px; width: 100%;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--red); border-color: var(--red); }
 label.f-label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 12px 0 6px; }
@@ -159,7 +159,7 @@ label.f-label { display: block; font-size: 13px; font-weight: 700; color: var(--
 
 /* ---------- results toolbar ---------- */
 .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0; align-items: center; }
-.toolbar input[type="search"] { flex: 2; min-width: 160px; }
+.toolbar #resSearch { flex: 2; min-width: 160px; }
 .toolbar select { flex: 1; min-width: 140px; }
 .cat-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 6px; }
 .cat-row .chip { white-space: nowrap; }
@@ -40604,7 +40604,7 @@ function renderQuizStep() {
       CITIES.filter((c) => c.country !== "Canada" && c.country !== "United States")
     );
     body =
-      '<input type="search" id="qCitySearch" placeholder="\u{1F50D} Type your city \u2014 Toronto, Phoenix, Lagos\u2026" style="width:100%;margin-bottom:10px" />' +
+      '<input type="text" inputmode="search" enterkeyhint="search" autocomplete="off" id="qCitySearch" placeholder="\u{1F50D} Type your city \u2014 Toronto, Phoenix, Lagos\u2026" style="width:100%;margin-bottom:10px" />' +
       '<p class="quiz-sub">\u{1F1E8}\u{1F1E6} Canada and \u{1F1FA}\u{1F1F8} the US are listed first \u2014 or just type in the search bar.</p>' +
       '<div class="opt-list" id="qCityList" style="max-height:320px;overflow-y:auto">' +
       ordered
@@ -40632,7 +40632,7 @@ function renderQuizStep() {
     const cur = quizState.answers[q.key] || [];
     body =
       (q.options.length > 40
-        ? '<input type="search" id="qFilter" placeholder="\u{1F50D} Type to filter — e.g. dog, excel, tools\u2026" style="width:100%;margin-bottom:10px" />' +
+        ? '<input type="text" inputmode="search" enterkeyhint="search" autocomplete="off" id="qFilter" placeholder="\u{1F50D} Type to filter — e.g. dog, excel, tools\u2026" style="width:100%;margin-bottom:10px" />' +
           '<p class="quiz-sub" id="qSelCount">' + cur.length + " selected</p>"
         : "") +
       '<div class="chips">' +
@@ -40697,7 +40697,8 @@ function renderQuizStep() {
         c.style.display = c.textContent.toLowerCase().includes(term) ? "" : "none";
       });
     };
-    qCitySearch.focus();
+    /* no programmatic .focus() here: auto-focusing the city search made Android
+       treat the box as already-focused, so tapping it never opened the keyboard */
   }
   const back = document.getElementById("qBack");
   if (back) back.onclick = () => {
@@ -40800,7 +40801,7 @@ function renderResults() {
     ).join("") +
     "</div>" +
     '<div class="toolbar">' +
-    '<input type="search" id="resSearch" placeholder="Search gigs…" value="' + esc(resState.q) + '" />' +
+    '<input type="text" inputmode="search" enterkeyhint="search" autocomplete="off" id="resSearch" placeholder="Search gigs…" value="' + esc(resState.q) + '" />' +
     '<select id="resSort">' +
     SORTS.map((s) => '<option value="' + s.v + '"' + (resState.sort === s.v ? " selected" : "") + ">" + esc(s.l) + "</option>").join("") +
     "</select></div>" +
@@ -40813,12 +40814,14 @@ function renderResults() {
   });
   html += "</div>";
 
+  html += '<div id="resMore">';
   if (ranked.length > resState.shown) {
     html +=
       '<div class="center" style="margin:18px 0"><button class="btn btn-ghost btn-big" id="showMoreBtn">Show more (' +
       (ranked.length - resState.shown) +
       " remaining)</button></div>";
   }
+  html += "</div>";
 
   html +=
     '<div class="section"><div class="card"><h3>📧 Email me my matches</h3>' +
@@ -40833,6 +40836,50 @@ function renderResults() {
       '<a class="btn btn-primary" href="#/compare">Compare now</a></div>';
   }
   box.innerHTML = html;
+
+  /* Refresh ONLY the results grid (never the search input itself).
+     Rebuilding the input on every keystroke destroyed the focused element and
+     killed the phone keyboard; this swaps grid + Show-more in place instead. */
+  const refreshResGrid = () => {
+    let r2 = rankedGigs(ans);
+    if (resState.cat !== "All") r2 = r2.filter((r) => r.gig.category === resState.cat);
+    if (resState.q) {
+      const q2 = resState.q.toLowerCase();
+      r2 = r2.filter(
+        (r) => r.gig.name.toLowerCase().includes(q2) || r.gig.platforms.toLowerCase().includes(q2)
+      );
+    }
+    r2.sort(sorters[resState.sort] || sorters.match);
+    let g = "";
+    r2.forEach((r, i) => {
+      if (i >= resState.shown) return;
+      g += gigCard(r.gig, r.score, ans.city);
+      if ((i + 1) % 3 === 0 && i !== Math.min(resState.shown, r2.length) - 1)
+        g += '<div class="ad-slot">AD SPACE</div>';
+    });
+    if (!r2.length) g = '<p class="sub">No gigs match that search.</p>';
+    const grid = document.getElementById("resGrid");
+    if (grid) grid.innerHTML = g;
+    const moreWrap = document.getElementById("resMore");
+    if (moreWrap) {
+      moreWrap.innerHTML =
+        r2.length > resState.shown
+          ? '<div class="center" style="margin:18px 0"><button class="btn btn-ghost btn-big" id="showMoreBtn">Show more (' +
+            (r2.length - resState.shown) +
+            " remaining)</button></div>"
+          : "";
+      const more2 = document.getElementById("showMoreBtn");
+      if (more2)
+        more2.onclick = () => {
+          resState.shown += 24;
+          refreshResGrid();
+        };
+    }
+    box.querySelectorAll("[data-cmp]").forEach((b) => {
+      b.onclick = () => toggleCompare(b.dataset.cmp);
+    });
+    bindSaveButtons();
+  };
 
   box.querySelectorAll("[data-cat]").forEach((b) => {
     b.onclick = () => {
@@ -40852,12 +40899,7 @@ function renderResults() {
     resState.q = e.target.value;
     resState.shown = 24;
     syncResUrl();
-    // re-render grid only (keep focus): simple approach re-renders all but restores focus
-    const pos = e.target.selectionStart;
-    renderResults();
-    const inp = document.getElementById("resSearch");
-    inp.focus();
-    inp.setSelectionRange(pos, pos);
+    refreshResGrid();
   };
   box.querySelectorAll("[data-cmp]").forEach((b) => {
     b.onclick = () => toggleCompare(b.dataset.cmp);
