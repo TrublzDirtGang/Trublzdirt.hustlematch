@@ -40829,6 +40829,7 @@ function applyLink(a, city, gigName) {
   if (url.indexOf("thumbtack.com") !== -1 || url.indexOf("wagwalking.com") !== -1 || url.indexOf("neighbor.com") !== -1 || url.indexOf("urbansitter.com") !== -1 || url.indexOf("bark.com/en/us/") !== -1) return { url: caSearch, label: "Indeed Canada" };
   if (url.indexOf("www.taskrabbit.com") !== -1) return { url: url.replace("www.taskrabbit.com", "www.taskrabbit.ca"), label: a.label };
   if (url.indexOf("www.care.com/") !== -1) return { url: url.replace("www.care.com/", "www.care.com/en-ca/"), label: a.label };
+  if (url.indexOf("www.rover.com/sit/") !== -1) return { url: "https://www.rover.com/ca/", label: a.label };
   if (url.indexOf("www.doordash.com/dasher") !== -1) return { url: "https://dasher.doordash.com/en-ca", label: a.label };
   return { url: url, label: a.label };
 }
