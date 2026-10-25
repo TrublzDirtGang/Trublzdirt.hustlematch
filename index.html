@@ -40814,13 +40814,23 @@ function cityMult(name) {
 function adjPay(gig, city) {
   return gig.basePay * cityMult(city || "Chicago");
 }
-/* Apply links follow the user's city: {CITYFULL}/{CITY} tokens are filled
-   in, and any Indeed search link's l= is rewritten to the user's city, so
-   board searches match the city the user picked — not a hardcoded Toronto. */
-function applyUrl(u, city) {
-  let out = String(u || "").replace("{CITYFULL}", encodeURIComponent(city)).replace("{CITY}", encodeURIComponent(cityKey(city)));
-  if (out.indexOf("indeed.com/jobs") !== -1) out = out.replace(/([?&]l=)[^&]*/, "$1" + encodeURIComponent(city));
-  return out;
+/* CANADIAN LISTINGS RULE: a user searching a Canadian city must never land
+   on an American job list. Indeed links become ca.indeed.com searches for the
+   job in the user's city; US-only boards (Thumbtack, Wag, Neighbor) become
+   the same Canadian search; TaskRabbit, Care.com and DoorDash are rewritten
+   to their verified Canadian pages (taskrabbit.ca, care.com/en-ca,
+   dasher.doordash.com/en-ca). Kijiji and Craigslist Toronto are already
+   Canadian. Signup pages and global remote marketplaces (Upwork, Fiverr,
+   Rover, Turo) are left alone — they are not location job lists. */
+function applyLink(a, city, gigName) {
+  let url = String(a.url || "").replace("{CITYFULL}", encodeURIComponent(city)).replace("{CITY}", encodeURIComponent(cityKey(city)));
+  const caSearch = "https://ca.indeed.com/jobs?q=" + encodeURIComponent(gigName || "") + "&l=" + encodeURIComponent(city);
+  if (url.indexOf("indeed.com") !== -1) return { url: caSearch, label: "Indeed Canada" };
+  if (url.indexOf("thumbtack.com") !== -1 || url.indexOf("wagwalking.com") !== -1 || url.indexOf("neighbor.com") !== -1 || url.indexOf("urbansitter.com") !== -1 || url.indexOf("bark.com/en/us/") !== -1) return { url: caSearch, label: "Indeed Canada" };
+  if (url.indexOf("www.taskrabbit.com") !== -1) return { url: url.replace("www.taskrabbit.com", "www.taskrabbit.ca"), label: a.label };
+  if (url.indexOf("www.care.com/") !== -1) return { url: url.replace("www.care.com/", "www.care.com/en-ca/"), label: a.label };
+  if (url.indexOf("www.doordash.com/dasher") !== -1) return { url: "https://dasher.doordash.com/en-ca", label: a.label };
+  return { url: url, label: a.label };
 }
 function hoursNum(label) {
   if (label === "Under 10") return 8;
@@ -41595,7 +41605,7 @@ function vGig(id) {
     "</ul></div></div>" +
     '<div class="apply-box"><h3>🚀 Apply now</h3><p>Official sign-up pages. (Affiliate tracking can be added to these links later.)</p>' +
     '<div class="apply-links">' +
-    g.apply.map((a) => '<a class="btn btn-primary" href="' + esc(applyUrl(a.url, city)) + '" target="_blank" rel="noopener">' + esc(a.label) + " →</a>").join("") +
+    g.apply.map((a) => { const l = applyLink(a, city, g.name); return '<a class="btn btn-primary" href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.label) + " →</a>"; }).join("") +
     "</div></div>" +
     (g.community
       ? '<div class="card" style="margin:0 0 20px;border-color:var(--green)"><h3>👥 Employer posting</h3>' +
